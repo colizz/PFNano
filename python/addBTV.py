@@ -14,6 +14,9 @@ def update_jets_AK4(process):
     # and https://twiki.cern.ch/twiki/bin/view/CMS/DeepJet
     _btagDiscriminators = [
         'pfJetProbabilityBJetTags',
+        'pfJetBProbabilityBJetTags',
+        'pfNegativeOnlyJetProbabilityBJetTags',
+        'pfNegativeOnlyJetBProbabilityBJetTags',
         'pfDeepCSVJetTags:probb',
         'pfDeepCSVJetTags:probc',
         'pfDeepCSVJetTags:probbb',
@@ -23,7 +26,13 @@ def update_jets_AK4(process):
         'pfDeepFlavourJetTags:problepb',
         'pfDeepFlavourJetTags:probc',
         'pfDeepFlavourJetTags:probuds',
-        'pfDeepFlavourJetTags:probg'
+        'pfDeepFlavourJetTags:probg',
+        'pfNegativeDeepFlavourJetTags:probb',
+        'pfNegativeDeepFlavourJetTags:probbb',
+        'pfNegativeDeepFlavourJetTags:problepb',
+        'pfNegativeDeepFlavourJetTags:probc',
+        'pfNegativeDeepFlavourJetTags:probuds',
+        'pfNegativeDeepFlavourJetTags:probg',
     ]
     
     updateJetCollection(
@@ -254,10 +263,30 @@ def get_DeepJet_outputs():
         btagDeepFlavG=Var("bDiscriminator('pfDeepFlavourJetTags:probg')",
                           float,
                           doc="DeepJet gluon tag probability",
-                          precision=10)
+                          precision=10),
         # discriminators are already part of jets_cff.py from NanoAOD and therefore not added here     
+
+        # negative tags
+        btagNegativeDeepFlavB = Var("bDiscriminator('pfNegativeDeepFlavourJetTags:probb')+bDiscriminator('pfNegativeDeepFlavourJetTags:probbb')+bDiscriminator('pfNegativeDeepFlavourJetTags:problepb')",float,doc="DeepJet b+bb+lepb tag discriminator",precision=10),
+        btagNegativeDeepFlavCvL = Var("?(bDiscriminator('pfNegativeDeepFlavourJetTags:probc')+bDiscriminator('pfNegativeDeepFlavourJetTags:probuds')+bDiscriminator('pfNegativeDeepFlavourJetTags:probg'))>0?bDiscriminator('pfNegativeDeepFlavourJetTags:probc')/(bDiscriminator('pfNegativeDeepFlavourJetTags:probc')+bDiscriminator('pfNegativeDeepFlavourJetTags:probuds')+bDiscriminator('pfNegativeDeepFlavourJetTags:probg')):-1",float,doc="DeepJet c vs uds+g discriminator",precision=10),
+        btagNegativeDeepFlavCvB = Var("?(bDiscriminator('pfNegativeDeepFlavourJetTags:probc')+bDiscriminator('pfNegativeDeepFlavourJetTags:probb')+bDiscriminator('pfNegativeDeepFlavourJetTags:probbb')+bDiscriminator('pfNegativeDeepFlavourJetTags:problepb'))>0?bDiscriminator('pfNegativeDeepFlavourJetTags:probc')/(bDiscriminator('pfNegativeDeepFlavourJetTags:probc')+bDiscriminator('pfNegativeDeepFlavourJetTags:probb')+bDiscriminator('pfNegativeDeepFlavourJetTags:probbb')+bDiscriminator('pfNegativeDeepFlavourJetTags:problepb')):-1",float,doc="DeepJet c vs b+bb+lepb discriminator",precision=10),
+        btagNegativeDeepFlavQG = Var("?(bDiscriminator('pfNegativeDeepFlavourJetTags:probg')+bDiscriminator('pfNegativeDeepFlavourJetTags:probuds'))>0?bDiscriminator('pfNegativeDeepFlavourJetTags:probg')/(bDiscriminator('pfNegativeDeepFlavourJetTags:probg')+bDiscriminator('pfNegativeDeepFlavourJetTags:probuds')):-1",float,doc="DeepJet g vs uds discriminator",precision=10),
     )
     return DeepJetOutputVars
+
+
+def customize_BTV_GenTable(process):
+    process.finalGenParticles.select += [
+        "keep (4 <= abs(pdgId) <= 5) && statusFlags().isLastCopy()", # BTV: keep b/c quarks in their last copy
+        "keep (abs(pdgId) == 310 || abs(pdgId) == 3122) && statusFlags().isLastCopy()", # BTV: keep K0s and Lambdas in their last copy
+    ]
+    process.genParticleTable.variables = cms.PSet(
+        process.genParticleTable.variables,
+        vx = Var("vx", "float", doc="x coordinate of vertex position"),
+        vy = Var("vy", "float", doc="y coordinate of vertex position"),
+        vz = Var("vz", "float", doc="z coordinate of vertex position"),
+        genPartIdxMother2 = Var("?numberOfMothers>1?motherRef(1).key():-1", "int", doc="index of the second mother particle, if valid"),
+    )
 
 
 def add_BTV(process, runOnMC=False, onlyAK4=False, onlyAK8=False, keepInputs=['DeepCSV','DDX'], storeAK4Truth='no'):
@@ -277,6 +306,18 @@ def add_BTV(process, runOnMC=False, onlyAK4=False, onlyAK8=False, keepInputs=['D
         Proba=Var("bDiscriminator('pfJetProbabilityBJetTags')",
                   float,
                   doc="Jet Probability (Usage:BTV)",
+                  precision=10),
+        ProbaN=Var("bDiscriminator('pfNegativeOnlyJetProbabilityBJetTags')",
+                  float,
+                  doc="Negative-only Jet Probability (Usage:BTV)",
+                  precision=10),
+        Bprob=Var("bDiscriminator('pfJetBProbabilityBJetTags')",
+                  float,
+                  doc="Jet B Probability (Usage:BTV)",
+                  precision=10),
+        BprobN=Var("bDiscriminator('pfNegativeOnlyJetBProbabilityBJetTags')",
+                  float,
+                  doc="Negative-only Jet B Probability (Usage:BTV)",
                   precision=10),
         btagDeepB_b=Var("bDiscriminator('pfDeepCSVJetTags:probb')",
                         float,
@@ -400,5 +441,9 @@ def add_BTV(process, runOnMC=False, onlyAK4=False, onlyAK8=False, keepInputs=['D
         process.customizeJetTask.add(process.customSubJetExtTable)
         if runOnMC:
             process.customizeJetTask.add(process.customSubJetMCExtTable)
+
+    ## customize BTV GenTable
+    if runOnMC:
+        customize_BTV_GenTable(process)
 
     return process
